@@ -1,0 +1,140 @@
+function mymap(){
+	emit(this.category, {category: this.category, count:1})}
+
+function myreduce(key, values){
+	var result={category: key, count:0}
+	values.forEach(function(v){
+		result.count+=v.count;
+});
+	return result;}
+
+db.places.mapReduce(mymap, myreduce,{out:{replace:"myResult01"}});
+db.myResult01.find();
+
+
+
+use geotest
+# Map-Reduce 
+function map(){
+    emit( this.category, { location : this.location, count : 1 } );
+};
+function reduce(k, v){
+    var r = { category : k, location : [0, 0], count : 0 };
+    v.forEach( function(vv) {
+        r.count += vv.count;
+        r.location[0] += vv.location[0];
+        r.location[1] += vv.location[1];
+    } );
+    r.location[0] = r.location[0] / r.count;
+    r.location[1] = r.location[1] / r.count;
+    return r;
+}
+db.places.mapReduce( map, reduce, { out : { replace : "myresult" } } );
+db.myresult.find();
+
+
+
+
+# Aggregation Pipeline
+db.places.aggregate( [
+      { $project: { emit: { key: "$category", value: { location : "$location", count: { $literal: 1 } } } } },
+      {$unwind: "$emits"},		
+      { $group: {
+            _id: "$emit.key",
+            value: { $accumulator: {
+               init: function() { return { location_x : 0, location_y : 0, count:0 }; },
+               initArgs: [],
+               accumulate: function(state, value) {
+                  state.count += value.count;
+                  state.location_x += value.location[0];
+                  state.location_y += value.location[1];
+                  return state;
+               },
+               accumulateArgs: [ "$emit.value" ],
+               merge: function(state1, state2) {
+                  return {location_x: state1.location_x + state2.location_x, location_y: state1.location_y + state2.location_y, count:state1.count+state2.count};
+               },
+               finalize: function(state) {
+               return {location:[state.location_x/state.count, state.location_y/state.count], count : state.count}
+               },
+               lang: "js"}
+            }
+      } },
+      { $merge: {
+         into: "myresult2"
+      } }
+] )
+db.myresult2.find();
+
+
+
+
+
+
+
+
+
+
+
+
+{ "publish" : "desert", "author" : "dave", "score" : 80, "views" : 100, "price": 30},
+{  "publish" : "fox", "author" : "dave", "score" : 85, "views" : 521, "price": 16},
+{  "publish" : "desert", "author" : "ahn", "score" : 60, "views" : 1000, "price": 18},
+{  "publish" : "desert", "author" : "li", "score" : 55, "views" : 5000, "price": 17},
+{  "publish" : "fox", "author" : "annT", "score" : 60, "views" : 50, "price": 23},
+{  "publish" : "fox", "author" : "li", "score" : 94, "views" : 999, "price": 20},
+{  "publish" : "fox", "author" : "ty", "score" : 95, "views" : 1000, "price": 20}
+맵리듀스
+function map() {
+      emit( this.publish, { score: this.score, view:this.views, price:this.price, count:1});
+}
+function reduce(key, values){
+var result = { Publisher:key, score_avg: 0, view_avg:0, tot_price:0}
+var vcount = 0
+var v_score_sum = 0
+var v_view_sum = 0
+var one_book_tot_price = 0 
+values.forEach(function(v){
+         vcount += v.count;
+         v_score_sum += v.score;
+         v_view_sum += v.view;
+         result.score_avg = v_score_sum/vcount;
+         result.view_avg = v_view_sum/vcount;
+         result.tot_price += (v.view*v.price);
+});
+return result;
+}
+db.publish.mapReduce(map, reduce, {out:{replace:"publishResult"}});
+db.publishResult.find();
+
+
+애그리게이트
+db.publish.aggregate( [
+      { $project: { emit: { key: "$publish", value: { score:"$score", view:"$views", price:"$price",count: { $literal: 1 } } } }  },
+      { $group: {
+            _id: "$emit.key",
+            value: { $accumulator: {
+               init: function() { return { count: 0, score: 0, view:0, obtp:0 }; },
+               initArgs: [],
+               accumulate: function(state, value) {
+                  state.count += value.count;
+                  state.score += value.score;
+                  state.view += value.view;
+                  state.obtp += (value.view * value.price);
+                  return state;
+               },
+               accumulateArgs: [ "$emit.value" ],
+               merge: function(state1, state2) {
+                  return {score: state1.score + state2.score, count:state1.count+state2.count, view:state1.view+state2.view, obtp : state1.obtp+state2.obtp };
+               },
+               finalize: function(state) {
+               return {score_avg:state.score/state.count, view_avg:state.view/state.count, tot_price:state.obtp}
+               },
+               lang: "js"}
+            }
+      } },
+      { $merge: {
+         into: "publishResult2"
+      } }
+] )
+

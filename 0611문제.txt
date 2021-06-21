@@ -1,0 +1,57 @@
+db.score.insert({name:"aaa",kor:90,eng:80,mat:95, test:"midterm"},
+db.score.insert({name:"bbb",kor:100,eng:55, mat:68, test:"final"})
+db.score.insert({name:"ccc",kor:70,eng:100, mat:39, test:"midterm"})
+db.score.insert({name:"ddd",kor:50,eng:88, mat:85, test:"midterm"})
+db.score.insert({name:"eee",kor:85,eng:100, mat:70, test:"final"})
+db.score.insert({name:"fff",kor:70,eng:79, mat:69, test:"final"})
+db.score.insert({name:"ggg",kor:90,eng:85, mat:80, test:"final"});
+
+
+
+  function mymap(){
+           emit(this.test , {test:this.test, count:1 })
+      };
+
+function myreduce(key, values){
+        var result = { test : key, count:0}
+        values.forEach(function (v){
+                            result.count += v.count;
+           });
+        return result;
+      }
+
+
+db.score.mapReduce(mymap,myreduce,{out:{replace:"myResult02"}});
+
+db.myResult02.find();
+
+
+
+
+
+
+
+
+
+
+ function mymap(){
+           emit(this.test , {test:this.test, kor:this.kor, mat:this.mat ,cnt:1})
+      };
+
+
+  function myreduce(key, values){
+        var result = { test : key, kor_sum:0, mat_avg:0}
+        var mat_sum=0
+        var cnt = 0
+        values.forEach(function (v){
+                            result.kor_sum += v.kor;
+                            mat_sum += v.mat
+                            cnt += v.cnt
+                            result.mat_avg = mat_sum/cnt
+           });
+        return result;
+      }
+
+db.score.mapReduce(mymap,myreduce,{out:{replace:"myResult03"}});
+ 
+db.myResult03.find();
